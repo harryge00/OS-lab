@@ -59,6 +59,19 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
+
+	uint32_t* ebp = (uint32_t*) read_ebp();
+	uint32_t* eip = (uint32_t*) *(ebp + 1);
+	uint32_t* arg = ebp + 2;
+	// cprintf(" ebp %08x  *ebp  %08x (int*)*ebp  %08x  args %08x %08x\n", ebp, *ebp, (int*)*ebp, arg, (int)ebp+8 );
+
+	while(ebp) {
+		cprintf("ebp %08x eip %08x args %08x %08x %08x %08x %08x\n", ebp, eip, arg[0], arg[1], arg[2], arg[3], arg[4]);
+		ebp = (uint32_t*) *ebp;
+		eip = (uint32_t*) *(ebp + 1);
+		arg = ebp + 2;
+		
+	}
 	return 0;
 }
 
@@ -66,7 +79,7 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 
 /***** Kernel monitor command interpreter *****/
 
-#define WHITESPACE "\t\r\n "
+#define WHITeipACE "\t\r\n "
 #define MAXARGS 16
 
 static int
@@ -76,12 +89,12 @@ runcmd(char *buf, struct Trapframe *tf)
 	char *argv[MAXARGS];
 	int i;
 
-	// Parse the command buffer into whitespace-separated arguments
+	// Parse the command buffer into whiteipace-separated arguments
 	argc = 0;
 	argv[argc] = 0;
 	while (1) {
-		// gobble whitespace
-		while (*buf && strchr(WHITESPACE, *buf))
+		// gobble whiteipace
+		while (*buf && strchr(WHITeipACE, *buf))
 			*buf++ = 0;
 		if (*buf == 0)
 			break;
@@ -92,7 +105,7 @@ runcmd(char *buf, struct Trapframe *tf)
 			return 0;
 		}
 		argv[argc++] = buf;
-		while (*buf && !strchr(WHITESPACE, *buf))
+		while (*buf && !strchr(WHITeipACE, *buf))
 			buf++;
 	}
 	argv[argc] = 0;
