@@ -126,7 +126,7 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 		// Can't search for user-level addresses yet!
   	        panic("User address");
 	}
-
+	// cprintf("stabs: %08x %08x %08x %08x\n", stabs, stab_end, stabstr, stabstr_end);
 	// String table validity checks
 	if (stabstr_end <= stabstr || stabstr_end[-1] != 0)
 		return -1;
@@ -179,8 +179,8 @@ debuginfo_eip(uintptr_t addr, struct Eipdebuginfo *info)
 	//	Look at the STABS documentation and <inc/stab.h> to find
 	//	which one.
 	// Your code here.
-
-
+	stab_binsearch(stabs, &lline, &rline, N_SLINE, addr);
+	info->eip_line = stabs[lline].n_desc;
 	// Search backwards from the line number for the relevant filename
 	// stab.
 	// We can't just use the "lfile" stab because inlined functions
