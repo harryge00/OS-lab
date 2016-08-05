@@ -122,7 +122,6 @@ mem_init(void)
 
 	// Find out how much memory the machine has (npages & npages_basemem).
 	i386_detect_memory();
-
 	// Remove this line when you're ready to test this function.
 	// panic("mem_init: This function is not finished\n");
 
@@ -147,7 +146,8 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
-
+	pages = (struct PageInfo*) boot_alloc(npages * sizeof(struct PageInfo));
+	memset(pages, 0, npages * sizeof(struct PageInfo));
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -159,6 +159,7 @@ mem_init(void)
 
 	check_page_free_list(1);
 	check_page_alloc();
+	panic("mem_init: This function is not finished\n");
 	check_page();
 
 	//////////////////////////////////////////////////////////////////////
@@ -171,6 +172,7 @@ mem_init(void)
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
 	// Your code goes here:
+	kern_pgdir[PDX(pages)] = PADDR(pages) | PTE_U | PTE_P;
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -272,9 +274,18 @@ page_init(void)
 // Hint: use page2kva and memset
 struct PageInfo *
 page_alloc(int alloc_flags)
-{
+{	
+	if(!page_free_list) {
+		return NULL;
+	}
+	struct PageInfo* alloc_page = page_free_list;
 	// Fill this function in
-	return 0;
+	if(alloc_flags && ALLOC_ZERO) {
+		memset(page2kva(page_free_list), 0, PGSIZE);
+	}
+	page_free_list = alloc_page->pp_link;
+	alloc_page->pp_link = NULL;
+	return alloc_page;
 }
 
 //
@@ -287,6 +298,15 @@ page_free(struct PageInfo *pp)
 	// Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
+	if(pp->pp_ref) {
+		panic("Cannot free page: pp->pp_ref is nonzero");
+		return;
+	} else if(pp->pp_link) {
+		panic("Cannot free page: pp->pp_link is not NULL");
+		return;
+	}
+	pp->pp_link = page_free_list->pp_link;
+	page_free_list->pp_link = pp;
 }
 
 //
@@ -442,6 +462,7 @@ check_page_free_list(bool only_low_memory)
 {
 	struct PageInfo *pp;
 	unsigned pdx_limit = only_low_memory ? 1 : NPDENTRIES;
+	cprintf("pdx_limit %x\n", pdx_limit);
 	int nfree_basemem = 0, nfree_extmem = 0;
 	char *first_free_page;
 
@@ -453,10 +474,15 @@ check_page_free_list(bool only_low_memory)
 		// list, since entry_pgdir does not map all pages.
 		struct PageInfo *pp1, *pp2;
 		struct PageInfo **tp[2] = { &pp1, &pp2 };
+		// cprintf("pp %x, pp_link: %x\n", page_free_list, page_free_list->pp_link);
 		for (pp = page_free_list; pp; pp = pp->pp_link) {
 			int pagetype = PDX(page2pa(pp)) >= pdx_limit;
+			//print from tail to head?
+			// cprintf("pp %x, pp_link: %x, pagetype: %x\n", pp, pp->pp_link, pagetype);
 			*tp[pagetype] = pp;
 			tp[pagetype] = &pp->pp_link;
+			// if(!pp->pp_link)
+				// cprintf("pp %x, pp_link: %x\n", pp, pp->pp_link);
 		}
 		*tp[1] = 0;
 		*tp[0] = pp2;
@@ -465,9 +491,12 @@ check_page_free_list(bool only_low_memory)
 
 	// if there's a page that shouldn't be on the free list,
 	// try to make sure it eventually causes trouble.
-	for (pp = page_free_list; pp; pp = pp->pp_link)
-		if (PDX(page2pa(pp)) < pdx_limit)
+	for (pp = page_free_list; pp; pp = pp->pp_link) {
+		if (PDX(page2pa(pp)) < pdx_limit) {
+			cprintf("should not executed");
 			memset(page2kva(pp), 0x97, 128);
+		}
+	}
 
 	first_free_page = (char *) boot_alloc(0);
 	for (pp = page_free_list; pp; pp = pp->pp_link) {
@@ -491,6 +520,7 @@ check_page_free_list(bool only_low_memory)
 
 	assert(nfree_basemem > 0);
 	assert(nfree_extmem > 0);
+	panic("check_page_free_list() succeeded!\n");
 }
 
 //
