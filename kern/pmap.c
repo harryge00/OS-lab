@@ -98,10 +98,10 @@ boot_alloc(uint32_t n)
 	// to a multiple of PGSIZE.
 	//
 	// LAB 2: Your code here.
+	result = nextfree;
 	if(n) {
 		nextfree += ROUNDUP(n, PGSIZE);
 	}
-	result = nextfree;
 	return result;
 }
 
@@ -147,8 +147,7 @@ mem_init(void)
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
 	pages = (struct PageInfo*) boot_alloc(npages * sizeof(struct PageInfo));
-	memset(pages, 0, npages * sizeof(struct PageInfo));
-
+	cprintf("pages %x %x\n", pages, page_free_list);
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
@@ -156,6 +155,7 @@ mem_init(void)
 	// particular, we can now map memory using boot_map_region
 	// or page_insert
 	page_init();
+	cprintf("pages %x\n", pages);
 
 	check_page_free_list(1);
 	check_page_alloc();
@@ -252,11 +252,22 @@ page_init(void)
 	// Change the code to reflect this.
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
-	size_t i;
-	for (i = 0; i < npages; i++) {
+	size_t i = 0;
+	pages[i].pp_ref = 1;
+	pages[i].pp_link = NULL;
+	for (i = 1; i < npages_basemem; i++) {
 		pages[i].pp_ref = 0;
 		pages[i].pp_link = page_free_list;
 		page_free_list = &pages[i];
+	}
+	for(;i < EXTPHYSMEM/PGSIZE; i++) {
+		pages[i].pp_link = NULL;
+		pages[i].pp_ref = 1;
+	}
+	for(; i < npages; i++) {
+		pages[i].pp_ref = 0;
+		pages[i].pp_link = page_free_list;
+		page_free_list = &pages[i];		
 	}
 }
 
@@ -489,15 +500,14 @@ check_page_free_list(bool only_low_memory)
 		page_free_list = pp1;
 	}
 
+	 cprintf("page_free_list %x\n\n", page_free_list);
 	// if there's a page that shouldn't be on the free list,
 	// try to make sure it eventually causes trouble.
 	for (pp = page_free_list; pp; pp = pp->pp_link) {
 		if (PDX(page2pa(pp)) < pdx_limit) {
-			cprintf("should not executed");
 			memset(page2kva(pp), 0x97, 128);
 		}
 	}
-
 	first_free_page = (char *) boot_alloc(0);
 	for (pp = page_free_list; pp; pp = pp->pp_link) {
 		// check that we didn't corrupt the free list itself
