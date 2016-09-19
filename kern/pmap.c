@@ -19,7 +19,7 @@ pde_t *kern_pgdir;		// Kernel's initial page directory
 struct PageInfo *pages;		// Physical page state array
 
 //bluesea
-//为初始化的全局静态变量会自动初始化成0. 
+//为初始化的全局静态变量会自动初始化成0.
 //这是满足page_free_list的初始化要求的
 static struct PageInfo *page_free_list;	// Free list of physical pages
 
@@ -103,7 +103,7 @@ boot_alloc(uint32_t n)
 	// to a multiple of PGSIZE.
 	//
 	// LAB 2: Your code here.
-	
+
 	//bluesea
 	if (n == 0){
 		return nextfree;
@@ -166,7 +166,9 @@ mem_init(void)
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
-
+	cprintf("%x\n", envs);
+	envs = (struct Env*) boot_alloc(NENV * sizeof(struct Env));
+	cprintf("now: %x\n", envs);
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
 	// up the list of free physical pages. Once we've done so, all further
@@ -200,6 +202,8 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
+	boot_map_region(kern_pgdir, UENVS, ROUNDUP(NENV * sizeof(struct Env), PGSIZE),
+		PADDR(envs), PTE_U | PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -212,10 +216,10 @@ mem_init(void)
 	//       overwrite memory.  Known as a "guard page".
 	//     Permissions: kernel RW, user NONE
 	// Your code goes here:
-	boot_map_region(kern_pgdir, KSTACKTOP - KSTKSIZE, KSTKSIZE, 
-			PADDR(bootstack), PTE_P); 
-//	boot_map_region(kern_pgdir, KSTACKTOP - PTSIZE, PTSIZE - KSTKSIZE, 
-//			PADDR(bootstacktop - PTSIZE), ~PTE_P); 
+	boot_map_region(kern_pgdir, KSTACKTOP - KSTKSIZE, KSTKSIZE,
+			PADDR(bootstack), PTE_P);
+//	boot_map_region(kern_pgdir, KSTACKTOP - PTSIZE, PTSIZE - KSTKSIZE,
+//			PADDR(bootstacktop - PTSIZE), ~PTE_P);
 
 	//////////////////////////////////////////////////////////////////////
 	// Map all of physical memory at KERNBASE.
@@ -300,7 +304,7 @@ page_init(void)
 	// Change the code to reflect this.
 	// NB: DO NOT actually touch the physical memory corresponding to
 	// free pages!
-	
+
 
 	//bluesea
 	//注意！
@@ -323,7 +327,7 @@ page_init(void)
 		//后来才发现，pages需要自己在mem_init()初始化。。。
 		else if (i >= EXTPHYSMEM / PGSIZE && i < 0x400000 / PGSIZE)
 			set_page_used(&pages[i]);
-		else 
+		else
 			set_page_free(&pages[i]);
 	}
 }
@@ -386,7 +390,7 @@ page_decref(struct PageInfo* pp)
 // This requires walking the two-level page table structure.
 //
 // bluesea
-// pgdir_walk具体返回的是： 
+// pgdir_walk具体返回的是：
 // 虚拟地址va, 所在的页面对应的page table 表项的地址，所以是二级页表page table
 // 的表项的地址，而非page dir的表项
 // (理由分析见check_page()中的相关分析)
@@ -793,8 +797,10 @@ check_kern_pgdir(void)
 
 	// check envs array (new test for lab 3)
 	n = ROUNDUP(NENV*sizeof(struct Env), PGSIZE);
-	for (i = 0; i < n; i += PGSIZE)
+	for (i = 0; i < n; i += PGSIZE) {
+		cprintf("%x, PADDR:%x, %x\n", check_va2pa(pgdir, UENVS + i), PADDR(envs), PADDR(envs) + i);
 		assert(check_va2pa(pgdir, UENVS + i) == PADDR(envs) + i);
+	}
 
 	// check phys mem
 	for (i = 0; i < npages * PGSIZE; i += PGSIZE){
@@ -909,7 +915,7 @@ check_page(void)
 	assert(!page_alloc(0));
 
 	// check that pgdir_walk returns a pointer to the pte
-	// 从这里也可以推测出pgdir_walk的功能（因为page table entry的歧义: 
+	// 从这里也可以推测出pgdir_walk的功能（因为page table entry的歧义:
 	// 是pointer to page table, 还是pointer of entry in page table)
 	// 给定虚拟地址va, kern_pgdir[PDX(va)]是va二级页表, page table的物理地址。
 	// 再KADDR一下，就成了page table的虚拟地址，即ptep
