@@ -1,6 +1,6 @@
 # My solution for MIT [6.828](https://pdos.csail.mit.edu/6.828/2014)
 
-An excellent resource for learning operating systems and kernel.
+A Unix-like operating system.
 
 ## Lab1
 * Bootloader and kdebug. Debugging with QEMU and gdb.
