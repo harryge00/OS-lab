@@ -188,7 +188,7 @@ env_setup_vm(struct Env *e)
 	p->pp_ref++;
 	//default size of pgdir : One page
 	e->env_pgdir = page2kva(p);
-	unit_t pdeno;
+	uint32_t pdeno;
 	for(pdeno = PDX(UTOP); pdeno < PGSIZE; pdeno++) {
 		e->env_pgdir[pdeno] = kern_pgdir[pdeno];
 	}
@@ -280,7 +280,14 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
-	
+	char *pva;
+	char *end = ROUNDUP((char *) va + len, PGSIZE);
+	char *start = ROUNDDOWN((char *) va, PGSIZE);
+	for(pva = start; pva < end; pva++) {
+		physaddr_t pa = PADDR(pva);
+		e->env_pgdir[PDX(pa)] = ;
+
+	}
 }
 
 //
@@ -337,6 +344,18 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 	//  What?  (See env_run() and env_pop_tf() below.)
 
 	// LAB 3: Your code here.
+	struct Elf *elfhd = (struct Elf*)binary;
+	int i = 0;
+	for(;i < size; i++) {
+		if(ph->p_type == ELF_PROG_LOAD) {
+			region_alloc(e, ph->p_va, ph->p_memsz);
+
+		}
+	}
+
+	// call the entry point from the ELF header
+	// note: does not return!
+	((void (*)(void)) (ELFHDR->e_entry))();
 
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
@@ -472,14 +491,17 @@ env_run(struct Env *e)
 
 	// LAB 3: Your code here.
 	// there may not be context switch: e == curenv
-	if(curenv && curenv->env_status == ENV_RUNNING) {
-		curenv->env_status = ENV_RUNNABLE;
+	if(e != curenv) {
+		if(curenv && curenv->env_status == ENV_RUNNING) {
+			curenv->env_status = ENV_RUNNABLE;
+		}
+		curenv = e;
+		e->env_status = ENV_RUNNING;
+		e->env_runs++;
+		//Will pgdir diff from kern_pgdir?
+		lcr3(PADDR(e->env_pgdir));
 	}
-	curenv = e;
-	e->env_status = ENV_RUNNING;
-	e->env_runs++;
 	// Switch address space????
-	lcr3(PADDR(e->env_pgdir));
-	env_pop_tf(e->env_tf);
+	env_pop_tf(& e->env_tf);
 	panic("env_run not yet implemented");
 }
