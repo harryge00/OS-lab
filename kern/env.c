@@ -284,11 +284,16 @@ region_alloc(struct Env *e, void *va, size_t len)
 	void *end = ROUNDUP(va + len, PGSIZE);
 	void *start = ROUNDDOWN(va, PGSIZE);
 	struct PageInfo *pp;
+	int ret;
+	cprintf("start, end:%08x, %08x\n", start, end);
 	for(pva = start; pva < end; pva+= PGSIZE) {
 		if(!(pp = page_alloc(0))) {
 			panic("Out of memory when region_alloc!");
 		}
-		page_insert(e->env_pgdir, pp, pva, PTE_W|PTE_U);
+		ret = page_insert(e->env_pgdir, pp, pva, PTE_W|PTE_U);
+		if(ret)
+			panic("Out of memory when region_alloc!");
+		cprintf("page_insert for env:%08x, pva:%08x\n", e, pva);
 	}
 }
 
@@ -347,25 +352,22 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 
 	// LAB 3: Your code here.
 	lcr3(PADDR(e->env_pgdir));
+
 	struct Elf *elfhd = (struct Elf*)binary;
-	struct Proghdr *ph, *eph;
+	struct Proghdr *ph, *endph;
+	ph = (struct Proghdr *) (elfhd->e_phoff + binary);
+	endph = ph + elfhd->e_phnum;
+	char *start, *content;
 
-	// is this a valid ELF?
-	if (elfhd->e_magic != ELF_MAGIC) {
-			panic("not valid elf header!");
-	}
+	e->env_tf.tf_eip = elfhd->e_entry;
 
-	// load each program segment (ignores ph flags)
-	ph = (struct Proghdr *) ((uint8_t *) elfhd + elfhd->e_phoff);
-	eph = ph + elfhd->e_phnum;
-	for (; ph < eph; ph++) {
-		// p_pa is the load address of this segment (as well
-		// as the physical address)
-		if(ph->p_type == ELF_PROG_LOAD) {
-			region_alloc(e, KADDR(ph->p_pa), ph->p_memsz);
-			memmove((void *)ph->p_va, (char *)binary + ph->p_offset, ph->p_filesz);
-			memset((void *)(ph->p_va + ph->p_filesz), 0, ph->p_memsz - ph->p_filesz);
-		}
+	// 如果.bss section, 那么只有ALLOC，没有LOAD(objdump -h obj/user/* 发现的)
+	for ( ; ph < endph; ph++){
+		//allocate and map, region_alloc() should work under env's pgidr.
+		//as mapping above UTOP(=UENV) are all the same for different process.
+		region_alloc(e, (void *)ph->p_va, ph->p_memsz);
+		memmove((void *)ph->p_va, (char *)binary + ph->p_offset, ph->p_filesz);
+		memset((void *)(ph->p_va + ph->p_filesz), 0, ph->p_memsz - ph->p_filesz);
 	}
 	lcr3(PADDR(kern_pgdir));
 
@@ -373,7 +375,7 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 	// at virtual address USTACKTOP - PGSIZE.
 
 	// LAB 3: Your code here.
-	region_alloc(e, (void*)(USTACKTOP - PGSIZE), PGSIZE);
+	region_alloc(e, (void *)(USTACKTOP - PGSIZE), PGSIZE);
 }
 
 //
@@ -389,13 +391,13 @@ env_create(uint8_t *binary, size_t size, enum EnvType type)
 	// LAB 3: Your code here.
 	struct Env *newenv;
 	int err;
-	panic("env_create begins");
+	cprintf("env_create begins");
 	if(err = env_alloc(&newenv, 0))
 		panic("fail to call env_alloc() in env_create(): %e", err);
 	newenv->env_parent_id = 0;
 	newenv->env_type = type;
 	load_icode(newenv, binary, size);
-	panic("env_create ends");
+	cprintf("env_create ends");
 }
 
 //

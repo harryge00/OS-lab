@@ -797,7 +797,6 @@ check_kern_pgdir(void)
 	// check envs array (new test for lab 3)
 	n = ROUNDUP(NENV*sizeof(struct Env), PGSIZE);
 	for (i = 0; i < n; i += PGSIZE) {
-		cprintf("%x, PADDR:%x, %x\n", check_va2pa(pgdir, UENVS + i), PADDR(envs), PADDR(envs) + i);
 		assert(check_va2pa(pgdir, UENVS + i) == PADDR(envs) + i);
 	}
 
