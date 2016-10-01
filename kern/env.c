@@ -280,13 +280,15 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
-	char *pva;
-	char *end = ROUNDUP((char *) va + len, PGSIZE);
-	char *start = ROUNDDOWN((char *) va, PGSIZE);
-	for(pva = start; pva < end; pva++) {
-		physaddr_t pa = PADDR(pva);
-		e->env_pgdir[PDX(pa)] = ;
-
+	void *pva;
+	void *end = ROUNDUP(va + len, PGSIZE);
+	void *start = ROUNDDOWN(va, PGSIZE);
+	struct PageInfo *pp;
+	for(pva = start; pva < end; pva+= PGSIZE) {
+		if(!(pp = page_alloc(0))) {
+			panic("Out of memory when region_alloc!");
+		}
+		page_insert(e->env_pgdir, pp, pva, PTE_W|PTE_U);
 	}
 }
 
@@ -344,23 +346,34 @@ load_icode(struct Env *e, uint8_t *binary, size_t size)
 	//  What?  (See env_run() and env_pop_tf() below.)
 
 	// LAB 3: Your code here.
+	lcr3(PADDR(e->env_pgdir));
 	struct Elf *elfhd = (struct Elf*)binary;
-	int i = 0;
-	for(;i < size; i++) {
-		if(ph->p_type == ELF_PROG_LOAD) {
-			region_alloc(e, ph->p_va, ph->p_memsz);
+	struct Proghdr *ph, *eph;
 
-		}
+	// is this a valid ELF?
+	if (elfhd->e_magic != ELF_MAGIC) {
+			panic("not valid elf header!");
 	}
 
-	// call the entry point from the ELF header
-	// note: does not return!
-	((void (*)(void)) (ELFHDR->e_entry))();
+	// load each program segment (ignores ph flags)
+	ph = (struct Proghdr *) ((uint8_t *) elfhd + elfhd->e_phoff);
+	eph = ph + elfhd->e_phnum;
+	for (; ph < eph; ph++) {
+		// p_pa is the load address of this segment (as well
+		// as the physical address)
+		if(ph->p_type == ELF_PROG_LOAD) {
+			region_alloc(e, KADDR(ph->p_pa), ph->p_memsz);
+			memmove((void *)ph->p_va, (char *)binary + ph->p_offset, ph->p_filesz);
+			memset((void *)(ph->p_va + ph->p_filesz), 0, ph->p_memsz - ph->p_filesz);
+		}
+	}
+	lcr3(PADDR(kern_pgdir));
 
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
 
 	// LAB 3: Your code here.
+	region_alloc(e, (void*)(USTACKTOP - PGSIZE), PGSIZE);
 }
 
 //
@@ -374,6 +387,15 @@ void
 env_create(uint8_t *binary, size_t size, enum EnvType type)
 {
 	// LAB 3: Your code here.
+	struct Env *newenv;
+	int err;
+	panic("env_create begins");
+	if(err = env_alloc(&newenv, 0))
+		panic("fail to call env_alloc() in env_create(): %e", err);
+	newenv->env_parent_id = 0;
+	newenv->env_type = type;
+	load_icode(newenv, binary, size);
+	panic("env_create ends");
 }
 
 //
