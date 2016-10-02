@@ -214,7 +214,7 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	int32_t generation;
 	int r;
 	struct Env *e;
-
+	cprintf("env_alloc e:%x, env_free_list:%x, newenv_store:%x\n", e, env_free_list, newenv_store);
 	if (!(e = env_free_list))
 		return -E_NO_FREE_ENV;
 
@@ -391,7 +391,7 @@ env_create(uint8_t *binary, size_t size, enum EnvType type)
 	// LAB 3: Your code here.
 	struct Env *newenv;
 	int err;
-	cprintf("env_create begins");
+	cprintf("env_create begins %x %x\n", newenv, newenv);
 	if(err = env_alloc(&newenv, 0))
 		panic("fail to call env_alloc() in env_create(): %e", err);
 	newenv->env_parent_id = 0;
